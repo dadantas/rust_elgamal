@@ -30,9 +30,70 @@ pub struct ElGamalCiphertext {
     c2: BabyJubPoint,
     x_increment: Scalar,
 }
+//to bytes
+impl ElGamalCiphertext {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut result = Vec::new();
+        result.extend_from_slice(&self.c1.x.into_bigint().to_bytes_be());
+        result.extend_from_slice(&self.c1.y.into_bigint().to_bytes_be());
+        result.extend_from_slice(&self.c2.x.into_bigint().to_bytes_be());
+        result.extend_from_slice(&self.c2.y.into_bigint().to_bytes_be());
+        result.extend_from_slice(&self.x_increment.into_bigint().to_bytes_be());
+        result
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, CryptoError> {
+        if bytes.len() != 160 {
+            return Err(CryptoError::InvalidCiphertext);
+        }
+
+        let c1_x = &bytes[0..32];
+        let c1_y = &bytes[32..64];
+        let c2_x = &bytes[64..96];
+        let c2_y = &bytes[96..128];
+        let x_increment = &bytes[128..160];
+
+        let c1 = BabyJubPoint {
+            x: Scalar::from_be_bytes_mod_order(c1_x),
+            y: Scalar::from_be_bytes_mod_order(c1_y),
+        };
+        let c2 = BabyJubPoint {
+            x: Scalar::from_be_bytes_mod_order(c2_x),
+            y: Scalar::from_be_bytes_mod_order(c2_y),
+        };
+        let x_increment = Scalar::from_be_bytes_mod_order(x_increment);
+
+        Ok(ElGamalCiphertext { c1, c2, x_increment })
+    }
+}
+
 
 pub fn gen_pub_key(priv_key: Scalar) -> Point {
     Point::generator().mul_bigint(priv_key.into_bigint())
+}
+
+pub fn pub_key_to_bytes(pub_key: Point) -> Vec<u8> {
+    let pub_key_affine = pub_key.into_affine();
+    let mut result = Vec::new();
+    result.extend_from_slice(&pub_key_affine.x.into_bigint().to_bytes_be());
+    result.extend_from_slice(&pub_key_affine.y.into_bigint().to_bytes_be());
+    result
+}
+
+pub fn gen_pub_key_bytes(priv_key: &[u8]) -> Result<Vec<u8>, CryptoError> {
+    if priv_key.len() != 32 {
+        return Err(CryptoError::InvalidPublicKey);
+    }
+
+    let priv_key = Scalar::from_be_bytes_mod_order(priv_key);
+    let pub_key = gen_pub_key(priv_key);
+
+    Ok(pub_key_to_bytes(pub_key))
+}
+
+pub fn gen_priv_key_bytes() -> Vec<u8> {
+    let priv_key = generate_random_scalar();
+    priv_key.into_bigint().to_bytes_be()
 }
 
 
@@ -181,3 +242,37 @@ pub fn decrypt_bytes(priv_key: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, Cryp
 }
 
 
+pub fn rerandomize_bytes(ciphertext: &[u8]) -> Result<Vec<u8>, CryptoError> {
+    if ciphertext.len() != 160 {
+        return Err(CryptoError::InvalidCiphertext);
+    }
+
+    let c1_x = &ciphertext[0..32];
+    let c1_y = &ciphertext[32..64];
+    let c2_x = &ciphertext[64..96];
+    let c2_y = &ciphertext[96..128];
+    let x_increment = &ciphertext[128..160];
+
+    let c1 = BabyJubPoint {
+        x: ark_ed_on_bn254::Fq::from_be_bytes_mod_order(c1_x),
+        y: ark_ed_on_bn254::Fq::from_be_bytes_mod_order(c1_y),
+    };
+    let c2 = BabyJubPoint {
+        x: ark_ed_on_bn254::Fq::from_be_bytes_mod_order(c2_x),
+        y: ark_ed_on_bn254::Fq::from_be_bytes_mod_order(c2_y),
+    };
+    let x_increment = ark_ed_on_bn254::Fq::from_be_bytes_mod_order(x_increment);
+
+    let ciphertext = ElGamalCiphertext { c1, c2, x_increment };
+
+    let rerandomized = rerandomize(&ciphertext);
+
+    let mut result = Vec::new();
+    result.extend_from_slice(&rerandomized.c1.x.into_bigint().to_bytes_be());
+    result.extend_from_slice(&rerandomized.c1.y.into_bigint().to_bytes_be());
+    result.extend_from_slice(&rerandomized.c2.x.into_bigint().to_bytes_be());
+    result.extend_from_slice(&rerandomized.c2.y.into_bigint().to_bytes_be());
+    result.extend_from_slice(&rerandomized.x_increment.into_bigint().to_bytes_be());
+
+    Ok(result)
+}

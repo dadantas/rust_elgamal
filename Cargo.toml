@@ -25,3 +25,7 @@ harness = false
 [[bench]]
 name = "aes"
 harness = false
+
+[lib]
+name = "rust_elgamal"
+crate-type = ["cdylib", "rlib"]

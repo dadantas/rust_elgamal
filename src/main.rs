@@ -1,12 +1,13 @@
 
-use std::{str::FromStr, time::Instant};
+use std::time::Instant;
 
 
 use ark_ec::CurveGroup;
-use ark_ff::{BigInt, BigInteger, PrimeField};
+use ark_ff::{BigInteger, PrimeField};
 use openssl::symm::Cipher;
 use hex::encode;
-use rust_elgamal::elgamal::*;
+mod cipher;
+use cipher::elgamal::*;
 
 fn main() {
     //aes ctr
