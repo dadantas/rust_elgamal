@@ -18,25 +18,23 @@ fn test_encryption_decryption() {
     let keypair = generate_keypair();
     let keypair_ref = unsafe { &*keypair };
 
-    let message = [1u8; 32];
-    let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), message.as_ptr());
+    let message = "Hello, world!";
+    let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), message.as_ptr(), message.len());
     assert!(!ciphertext.is_null());
     //check size of ciphertext
-    let ciphertext_slice = unsafe { std::slice::from_raw_parts(ciphertext, 160) };
-    assert_eq!(ciphertext_slice.len(), 160);
+    let ciphertext_slice = unsafe { std::slice::from_raw_parts(ciphertext, 128) };
+    assert_eq!(ciphertext_slice.len(), 128);
 
-
-    let decrypted_message = decrypt_message(keypair_ref.priv_key.as_ptr(), ciphertext);
+    let mut size = 0;
+    let decrypted_message = decrypt_message(keypair_ref.priv_key.as_ptr(), ciphertext, &mut size);
     assert!(!decrypted_message.is_null());
 
-    let decrypted_message_slice = unsafe { std::slice::from_raw_parts(decrypted_message, 32) };
-    assert_eq!(message, decrypted_message_slice);
+    let decrypted_message_slice = unsafe { std::slice::from_raw_parts(decrypted_message, size) };
+    assert_eq!(message.as_bytes(), decrypted_message_slice);
 
-    unsafe {
-        free_keypair(keypair);
-        free_buffer(ciphertext);
-        free_buffer(decrypted_message);
-    }
+    free_keypair(keypair);
+    free_buffer(ciphertext);
+    free_buffer(decrypted_message);
 }
 
 #[test]
@@ -44,22 +42,21 @@ fn test_rerandomization() {
     let keypair = generate_keypair();
     let keypair_ref = unsafe { &*keypair };
 
-    let message = [1u8; 32];
-    let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), message.as_ptr());
+    let message = "Hello, world!";
+    let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), message.as_ptr(), message.len());
     assert!(!ciphertext.is_null());
 
-    let rerandomized_ciphertext = rerandomize_ciphertext(ciphertext);
+    let rerandomized_ciphertext = rerandomize_ciphertext(ciphertext, keypair_ref.pub_key.as_ptr());
     assert!(!rerandomized_ciphertext.is_null());
 
-    let decrypted_message = decrypt_message(keypair_ref.priv_key.as_ptr(), rerandomized_ciphertext);
+    let mut msg_len: usize = 0;
+    let decrypted_message = decrypt_message(keypair_ref.priv_key.as_ptr(), rerandomized_ciphertext, &mut msg_len);
     assert!(!decrypted_message.is_null());
 
-    let decrypted_message_slice = unsafe { std::slice::from_raw_parts(decrypted_message, 32) };
-    assert_eq!(message, decrypted_message_slice);
+    let decrypted_message_slice = unsafe { std::slice::from_raw_parts(decrypted_message, msg_len) };
+    assert_eq!(message.as_bytes(), decrypted_message_slice);
 
-    unsafe {
-        free_keypair(keypair);
-        free_buffer(ciphertext);
-        free_buffer(rerandomized_ciphertext);
-    }
+    free_keypair(keypair);
+    free_buffer(ciphertext);
+    free_buffer(rerandomized_ciphertext);
 }

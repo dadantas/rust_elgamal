@@ -2,12 +2,9 @@
 use std::time::Instant;
 
 
-use ark_ec::CurveGroup;
-use ark_ff::{BigInteger, PrimeField};
 use openssl::symm::Cipher;
 use hex::encode;
-mod cipher;
-use cipher::elgamal::*;
+use rust_elgamal::{decrypt_message, encrypt_message, free_buffer, free_keypair, generate_keypair, rerandomize_ciphertext};
 
 fn main() {
     //aes ctr
@@ -24,72 +21,27 @@ fn main() {
     println!("Encrypted: {}", encode(&encrypted));
     println!("Decrypted: {}", String::from_utf8(decrypted).unwrap());
 
-    //test encode and decode
-    let original = generate_random_scalar();
-    let message = encode_to_message(original);
-    let decoded = decode_message(&message);
-    println!("Original: {:?}", original);
-    println!("Decoded: {:?}", decoded);
 
+    let keypair = generate_keypair();
+    let keypair_ref = unsafe { &*keypair };
 
-
-    let plain = generate_random_scalar();
-    let priv_key = generate_random_scalar();
-    let pub_key = gen_pub_key(priv_key);
-    let random_val = generate_random_scalar();
-
-    println!("Plain: {:?}", plain);
+    let message = "Hello, world!";
     start = Instant::now();
-    let ciphertext = encrypt(plain, pub_key, random_val);
+    let mut ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), message.as_ptr(), message.len());
     println!("ElGamal Enc Time: {:?}", start.elapsed());
 
-    start = Instant::now();
-    let decrypted = decrypt(priv_key, &ciphertext);
-    println!("Decrypted: {:?}", decrypted);
-    println!("ElGamal Dec Time: {:?}", start.elapsed());
-
-    let rerandomized = rerandomize(&ciphertext);
-    let decrypted_rerandomized = decrypt(priv_key, &rerandomized);
-    println!("Decrypted rerandomized: {:?}", decrypted_rerandomized);
+    ciphertext = rerandomize_ciphertext(ciphertext, keypair_ref.pub_key.as_ptr());
+    let mut size = 0;
+    let decrypted_message = decrypt_message(keypair_ref.priv_key.as_ptr(), ciphertext, &mut size);
 
 
 
+    let decrypted_message_slice = unsafe { std::slice::from_raw_parts(decrypted_message, size) };
 
-    // let priv_key = generate_random_scalar();
-    let mut pub_key_bytes = Vec::new();
-    pub_key_bytes.extend_from_slice(&pub_key.into_affine().x.into_bigint().to_bytes_be());
-    pub_key_bytes.extend_from_slice(&pub_key.into_affine().y.into_bigint().to_bytes_be());
+    println!("Decrypted: {:?}", String::from_utf8(decrypted_message_slice.to_vec()).unwrap());
 
-    println!("pub_key: {:?}", pub_key.into_affine());
-    println!("pub_key_bytes: {:?}", pub_key_bytes);
-    println!("Length: {:?}", pub_key_bytes.len());
-
-    let plain = "Hello";
-    //pad plain 
-
-    let cipher = encrypt_bytes(&plain.as_bytes(), &pub_key_bytes);
-    match cipher {
-        Ok(cipher) => {
-            println!("Encrypted: {:?}", cipher);
-            let decrypted = decrypt_bytes(&priv_key.into_bigint().to_bytes_be(), &cipher);
-            println!("Decrypted: {:?}", decrypted);
-            match decrypted {
-                Ok(decrypted_bytes) => {
-                    //trim
-                    let mut decrypted_bytes = decrypted_bytes;
-                    decrypted_bytes.retain(|&x| x != 0);
-                    
-                    println!("Decrypted: {:?}", String::from_utf8(decrypted_bytes).unwrap());
-                }
-                Err(e) => {
-                    println!("Decryption error: {:?}", e);
-                }
-            }
-        }
-        Err(e) => {
-            println!("Error: {:?}", e);
-        }
-        
-    }
+    free_keypair(keypair);
+    free_buffer(ciphertext);
+    free_buffer(decrypted_message);
 
 }
