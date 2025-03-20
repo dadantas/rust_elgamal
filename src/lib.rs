@@ -1,5 +1,6 @@
 mod cipher;
 
+use ark_ff::PrimeField;
 use cipher::elgamal::{gen_priv_key_bytes, gen_pub_key_bytes};
 
 
@@ -91,6 +92,24 @@ pub extern "C" fn rerandomize_ciphertext(ciphertext: *const u8, pub_key: *const 
 
     Box::into_raw(rerandomized_ciphertext_bytes) as *mut u8
 }
+
+
+#[unsafe(no_mangle)]
+pub extern "C" fn bytes_to_bignum_str(bytes: *const u8, len: usize, is_be: bool) -> *mut std::os::raw::c_char {
+    let bytes = unsafe { std::slice::from_raw_parts(bytes, len) };
+
+    let bignum = if is_be {
+        ark_ed_on_bn254::Fq::from_be_bytes_mod_order(bytes)
+    } else {
+        ark_ed_on_bn254::Fq::from_le_bytes_mod_order(bytes)
+    };
+
+    let bignum_str = bignum.to_string();
+
+    let c_str = std::ffi::CString::new(bignum_str).unwrap();
+    c_str.into_raw()
+}
+
 
 
 #[unsafe(no_mangle)]
