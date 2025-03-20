@@ -1,6 +1,7 @@
 use ark_ec::{twisted_edwards::TECurveConfig, AffineRepr, CurveGroup, PrimeGroup};
 use ark_ed_on_bn254::{EdwardsProjective as Point, Fq as Scalar, EdwardsAffine};
 use ark_ff::{BigInteger, Field, One, PrimeField, UniformRand};
+use ark_std::rand::SeedableRng as _;
 
 #[derive(Debug)]
 pub enum CryptoError {
@@ -46,7 +47,7 @@ pub fn gen_priv_key_bytes() -> Vec<u8> {
 }
 
 pub fn generate_random_scalar() -> Scalar {
-    let mut rng = ark_std::test_rng();
+    let mut rng = ark_std::rand::rngs::StdRng::from_seed(rand::Rng::random(&mut rand::rng()));
     Scalar::rand(&mut rng)
 }
 
@@ -65,7 +66,8 @@ pub fn get_y_from_x(x: Scalar) -> Option<Scalar> {
 
 //Probabilistic encoding, unfortunately this is the only way i found that works messages must be < 32 bytes
 pub fn encode_to_message(original: &[u8]) -> EdwardsAffine {
-    let mut rng = ark_std::test_rng();
+    let mut rng = ark_std::rand::rngs::StdRng::from_seed(rand::Rng::random(&mut rand::rng()));
+
     loop {
         let random_point = Point::rand(&mut rng);
 
