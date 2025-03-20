@@ -2,7 +2,6 @@
 use std::time::Instant;
 
 
-use hex::encode;
 use rust_elgamal::{decrypt_message, encrypt_message, free_buffer, free_keypair, generate_keypair, rerandomize_ciphertext};
 
 fn main() {

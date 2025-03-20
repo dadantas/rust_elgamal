@@ -72,6 +72,27 @@ fn bench_rerandomize(c: &mut Criterion) {
 }
 
 
+//test encrypt with varying message sizes
+fn bench_encrypt_varying_message_size(c: &mut Criterion) {
+    let keypair = generate_keypair();
+    let keypair_ref = unsafe { &*keypair };
+
+    let mut group = c.benchmark_group("ElGamal Encryption Varying Message Size");
+    for i in 1..=30 {
+        let message: Vec<u8> = (0..i).collect();
+        group.bench_with_input(format!("Message Size: {}", i), &message, |b, message| {
+            b.iter(|| {
+                let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), message.as_ptr(), message.len());
+                unsafe { drop(Box::from_raw(ciphertext)); }
+            })
+        });
+    }
+    
+}
+
+
+
+
 // Register the benchmark functions
-criterion_group!(benches, bench_encrypt, bench_decrypt, bench_rerandomize);
+criterion_group!(benches, bench_encrypt, bench_decrypt, bench_rerandomize, bench_encrypt_varying_message_size);
 criterion_main!(benches);
