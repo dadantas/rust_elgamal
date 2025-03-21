@@ -11,7 +11,7 @@ fn main() {
 
     let message = "Hello, world!";
     let start = Instant::now();
-    let random_val = gen_random_scalar() as *mut std::os::raw::c_char;
+    let random_val = gen_random_scalar();
     let mut ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), random_val, message.as_ptr(), message.len());
 
     //free the random scalar
@@ -19,7 +19,7 @@ fn main() {
     println!("ElGamal Enc Time: {:?}", start.elapsed());
 
 
-    let random_val2 = gen_random_scalar() as *mut std::os::raw::c_char;
+    let random_val2 = gen_random_scalar();
     ciphertext = rerandomize_ciphertext(ciphertext, keypair_ref.pub_key.as_ptr(), random_val2);
     free_buffer(random_val2 as *mut u8);
     let mut size = 0;

@@ -19,7 +19,7 @@ fn test_encryption_decryption() {
     let keypair_ref = unsafe { &*keypair };
 
     let message = "Hello, world!";
-    let random_val = gen_random_scalar() as *mut std::os::raw::c_char;
+    let random_val = gen_random_scalar();
     let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), random_val, message.as_ptr(), message.len());
     assert!(!ciphertext.is_null());
     //check size of ciphertext
@@ -45,11 +45,11 @@ fn test_rerandomization() {
     let keypair_ref = unsafe { &*keypair };
 
     let message = "Hello, world!";
-    let random_val = gen_random_scalar() as *mut std::os::raw::c_char;
+    let random_val = gen_random_scalar();
     let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), random_val, message.as_ptr(), message.len());
     assert!(!ciphertext.is_null());
 
-    let random_val2 = gen_random_scalar() as *mut std::os::raw::c_char;
+    let random_val2 = gen_random_scalar();
     let rerandomized_ciphertext = rerandomize_ciphertext(ciphertext, keypair_ref.pub_key.as_ptr(), random_val2);
     assert!(!rerandomized_ciphertext.is_null());
 
