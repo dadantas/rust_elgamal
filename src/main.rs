@@ -18,7 +18,10 @@ fn main() {
     free_buffer(random_val as *mut u8);
     println!("ElGamal Enc Time: {:?}", start.elapsed());
 
-    ciphertext = rerandomize_ciphertext(ciphertext, keypair_ref.pub_key.as_ptr());
+
+    let random_val2 = gen_random_scalar() as *mut std::os::raw::c_char;
+    ciphertext = rerandomize_ciphertext(ciphertext, keypair_ref.pub_key.as_ptr(), random_val2);
+    free_buffer(random_val2 as *mut u8);
     let mut size = 0;
     let decrypted_message = decrypt_message(keypair_ref.priv_key.as_ptr(), ciphertext, &mut size);
 

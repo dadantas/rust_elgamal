@@ -42,7 +42,7 @@ fn bench_decrypt(c: &mut Criterion) {
         b.iter(|| {
             let mut size = 0;
             let decrypted_message = decrypt_message(keypair_ref.priv_key.as_ptr(), ciphertext, &mut size);
-            unsafe { drop(Box::from_raw(decrypted_message)); }
+            free_buffer(decrypted_message);
         })
     });
 
@@ -64,8 +64,10 @@ fn bench_rerandomize(c: &mut Criterion) {
 
     c.bench_function("ElGamal Rerandomization", |b| {
         b.iter(|| {
-            let rerandomized_ciphertext = rerandomize_ciphertext(ciphertext, keypair_ref.pub_key.as_ptr());
-            unsafe { drop(Box::from_raw(rerandomized_ciphertext)); }
+            let random_val2 = gen_random_scalar() as *mut std::os::raw::c_char;
+            let rerandomized_ciphertext = rerandomize_ciphertext(ciphertext, keypair_ref.pub_key.as_ptr(), random_val2);
+            free_buffer(random_val2 as *mut u8);
+            free_buffer(rerandomized_ciphertext);
         })
     });
 

@@ -150,8 +150,7 @@ pub fn decrypt(priv_key: Scalar, ciphertext: &ElGamalCiphertext) -> Vec<u8> {
     decode_message(&decrypted_point.into_affine())
 }
 
-pub fn rerandomize(ciphertext: &ElGamalCiphertext, pubkey: Point) -> ElGamalCiphertext {
-    let random_val = generate_random_scalar();
+pub fn rerandomize(ciphertext: &ElGamalCiphertext, pubkey: Point, random_val: Scalar) -> ElGamalCiphertext {
     let c1_point = Point::generator().mul_bigint(random_val.into_bigint()) + Point::new(ciphertext.c1.x, ciphertext.c1.y, Scalar::one(), Scalar::one());
     let c2_point = ciphertext.c2 + pubkey.mul_bigint(random_val.into_bigint());
 
@@ -223,7 +222,7 @@ pub fn decrypt_bytes(priv_key: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, Cryp
     Ok(decrypted)
 }
 
-pub fn rerandomize_bytes(ciphertext: &[u8], pub_key: &[u8]) -> Result<Vec<u8>, CryptoError> {
+pub fn rerandomize_bytes(ciphertext: &[u8], pub_key: &[u8], random_val: Scalar) -> Result<Vec<u8>, CryptoError> {
     if ciphertext.len() != 128 {
         return Err(CryptoError::InvalidCiphertext);
     }
@@ -255,7 +254,7 @@ pub fn rerandomize_bytes(ciphertext: &[u8], pub_key: &[u8]) -> Result<Vec<u8>, C
 
     let ciphertext = ElGamalCiphertext { c1, c2 };
 
-    let rerandomized = rerandomize(&ciphertext, pub_key.into());
+    let rerandomized = rerandomize(&ciphertext, pub_key.into(), random_val);
 
     let mut result = Vec::new();
     result.extend_from_slice(&rerandomized.c1.x.into_bigint().to_bytes_le());

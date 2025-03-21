@@ -49,7 +49,8 @@ fn test_rerandomization() {
     let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), random_val, message.as_ptr(), message.len());
     assert!(!ciphertext.is_null());
 
-    let rerandomized_ciphertext = rerandomize_ciphertext(ciphertext, keypair_ref.pub_key.as_ptr());
+    let random_val2 = gen_random_scalar() as *mut std::os::raw::c_char;
+    let rerandomized_ciphertext = rerandomize_ciphertext(ciphertext, keypair_ref.pub_key.as_ptr(), random_val2);
     assert!(!rerandomized_ciphertext.is_null());
 
     let mut msg_len: usize = 0;
