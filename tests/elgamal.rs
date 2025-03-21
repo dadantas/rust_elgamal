@@ -1,4 +1,4 @@
-use rust_elgamal::{decrypt_message, encrypt_message, free_keypair, free_buffer, generate_keypair, rerandomize_ciphertext};
+use rust_elgamal::{decrypt_message, encrypt_message, free_buffer, free_keypair, gen_random_scalar, generate_keypair, rerandomize_ciphertext};
 
 
 #[test]
@@ -19,7 +19,8 @@ fn test_encryption_decryption() {
     let keypair_ref = unsafe { &*keypair };
 
     let message = "Hello, world!";
-    let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), message.as_ptr(), message.len());
+    let random_val = gen_random_scalar() as *mut std::os::raw::c_char;
+    let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), random_val, message.as_ptr(), message.len());
     assert!(!ciphertext.is_null());
     //check size of ciphertext
     let ciphertext_slice = unsafe { std::slice::from_raw_parts(ciphertext, 128) };
@@ -34,6 +35,7 @@ fn test_encryption_decryption() {
 
     free_keypair(keypair);
     free_buffer(ciphertext);
+    free_buffer(random_val as *mut u8);
     free_buffer(decrypted_message);
 }
 
@@ -43,7 +45,8 @@ fn test_rerandomization() {
     let keypair_ref = unsafe { &*keypair };
 
     let message = "Hello, world!";
-    let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), message.as_ptr(), message.len());
+    let random_val = gen_random_scalar() as *mut std::os::raw::c_char;
+    let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), random_val, message.as_ptr(), message.len());
     assert!(!ciphertext.is_null());
 
     let rerandomized_ciphertext = rerandomize_ciphertext(ciphertext, keypair_ref.pub_key.as_ptr());
@@ -58,5 +61,6 @@ fn test_rerandomization() {
 
     free_keypair(keypair);
     free_buffer(ciphertext);
+    free_buffer(random_val as *mut u8);
     free_buffer(rerandomized_ciphertext);
 }

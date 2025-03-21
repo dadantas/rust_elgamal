@@ -25,8 +25,8 @@ pub fn gen_pub_key(priv_key: Scalar) -> Point {
 pub fn pub_key_to_bytes(pub_key: Point) -> Vec<u8> {
     let pub_key_affine = pub_key.into_affine();
     let mut result = Vec::new();
-    result.extend_from_slice(&pub_key_affine.x.into_bigint().to_bytes_be());
-    result.extend_from_slice(&pub_key_affine.y.into_bigint().to_bytes_be());
+    result.extend_from_slice(&pub_key_affine.x.into_bigint().to_bytes_le());
+    result.extend_from_slice(&pub_key_affine.y.into_bigint().to_bytes_le());
     result
 }
 
@@ -35,7 +35,7 @@ pub fn gen_pub_key_bytes(priv_key: &[u8]) -> Result<Vec<u8>, CryptoError> {
         return Err(CryptoError::InvalidPublicKey);
     }
 
-    let priv_key = Scalar::from_be_bytes_mod_order(priv_key);
+    let priv_key = Scalar::from_le_bytes_mod_order(priv_key);
     let pub_key = gen_pub_key(priv_key);
 
     Ok(pub_key_to_bytes(pub_key))
@@ -43,7 +43,7 @@ pub fn gen_pub_key_bytes(priv_key: &[u8]) -> Result<Vec<u8>, CryptoError> {
 
 pub fn gen_priv_key_bytes() -> Vec<u8> {
     let priv_key = generate_random_scalar();
-    priv_key.into_bigint().to_bytes_be()
+    priv_key.into_bigint().to_bytes_le()
 }
 
 pub fn generate_random_scalar() -> Scalar {
@@ -164,7 +164,7 @@ pub fn rerandomize(ciphertext: &ElGamalCiphertext, pubkey: Point) -> ElGamalCiph
     }
 }
 
-pub fn encrypt_bytes(plaintext: &[u8], pub_key: &[u8]) -> Result<Vec<u8>, CryptoError> {
+pub fn encrypt_bytes(plaintext: &[u8], pub_key: &[u8], random_val: Scalar) -> Result<Vec<u8>, CryptoError> {
     if plaintext.len() > 32 {
         return Err(CryptoError::InvalidInputSize);
     }
@@ -176,20 +176,19 @@ pub fn encrypt_bytes(plaintext: &[u8], pub_key: &[u8]) -> Result<Vec<u8>, Crypto
     let pub_key_y = &pub_key[32..64];
 
     let pub_key = ark_ed_on_bn254::EdwardsAffine::new(
-        ark_ed_on_bn254::Fq::from_be_bytes_mod_order(pub_key_x),
-        ark_ed_on_bn254::Fq::from_be_bytes_mod_order(pub_key_y),
+        ark_ed_on_bn254::Fq::from_le_bytes_mod_order(pub_key_x),
+        ark_ed_on_bn254::Fq::from_le_bytes_mod_order(pub_key_y),
     );
 
-    let random_val = generate_random_scalar();
     let ciphertext = encrypt(plaintext, pub_key.into(), random_val);
     match ciphertext {
         Err(e) => Err(e),
         Ok(ciphertext) => {
             let mut result = Vec::new();
-            result.extend_from_slice(&ciphertext.c1.x.into_bigint().to_bytes_be());
-            result.extend_from_slice(&ciphertext.c1.y.into_bigint().to_bytes_be());
-            result.extend_from_slice(&ciphertext.c2.x.into_bigint().to_bytes_be());
-            result.extend_from_slice(&ciphertext.c2.y.into_bigint().to_bytes_be());
+            result.extend_from_slice(&ciphertext.c1.x.into_bigint().to_bytes_le());
+            result.extend_from_slice(&ciphertext.c1.y.into_bigint().to_bytes_le());
+            result.extend_from_slice(&ciphertext.c2.x.into_bigint().to_bytes_le());
+            result.extend_from_slice(&ciphertext.c2.y.into_bigint().to_bytes_le());
 
             Ok(result)
         }
@@ -201,7 +200,7 @@ pub fn decrypt_bytes(priv_key: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, Cryp
         return Err(CryptoError::InvalidCiphertext);
     }
 
-    let priv_key = ark_ff::Fp::from_be_bytes_mod_order(priv_key);
+    let priv_key = ark_ff::Fp::from_le_bytes_mod_order(priv_key);
 
     let c1_x = &ciphertext[0..32];
     let c1_y = &ciphertext[32..64];
@@ -209,12 +208,12 @@ pub fn decrypt_bytes(priv_key: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, Cryp
     let c2_y = &ciphertext[96..128];
 
     let c1 = EdwardsAffine {
-        x: ark_ed_on_bn254::Fq::from_be_bytes_mod_order(c1_x),
-        y: ark_ed_on_bn254::Fq::from_be_bytes_mod_order(c1_y),
+        x: ark_ed_on_bn254::Fq::from_le_bytes_mod_order(c1_x),
+        y: ark_ed_on_bn254::Fq::from_le_bytes_mod_order(c1_y),
     };
     let c2 = EdwardsAffine {
-        x: ark_ed_on_bn254::Fq::from_be_bytes_mod_order(c2_x),
-        y: ark_ed_on_bn254::Fq::from_be_bytes_mod_order(c2_y),
+        x: ark_ed_on_bn254::Fq::from_le_bytes_mod_order(c2_x),
+        y: ark_ed_on_bn254::Fq::from_le_bytes_mod_order(c2_y),
     };
 
     let ciphertext = ElGamalCiphertext { c1, c2 };
@@ -236,8 +235,8 @@ pub fn rerandomize_bytes(ciphertext: &[u8], pub_key: &[u8]) -> Result<Vec<u8>, C
     let pub_key_y = &pub_key[32..64];
 
     let pub_key = ark_ed_on_bn254::EdwardsAffine::new(
-        ark_ed_on_bn254::Fq::from_be_bytes_mod_order(pub_key_x),
-        ark_ed_on_bn254::Fq::from_be_bytes_mod_order(pub_key_y),
+        ark_ed_on_bn254::Fq::from_le_bytes_mod_order(pub_key_x),
+        ark_ed_on_bn254::Fq::from_le_bytes_mod_order(pub_key_y),
     );
 
     let c1_x = &ciphertext[0..32];
@@ -246,12 +245,12 @@ pub fn rerandomize_bytes(ciphertext: &[u8], pub_key: &[u8]) -> Result<Vec<u8>, C
     let c2_y = &ciphertext[96..128];
 
     let c1 = EdwardsAffine {
-        x: ark_ed_on_bn254::Fq::from_be_bytes_mod_order(c1_x),
-        y: ark_ed_on_bn254::Fq::from_be_bytes_mod_order(c1_y),
+        x: ark_ed_on_bn254::Fq::from_le_bytes_mod_order(c1_x),
+        y: ark_ed_on_bn254::Fq::from_le_bytes_mod_order(c1_y),
     };
     let c2 = EdwardsAffine {
-        x: ark_ed_on_bn254::Fq::from_be_bytes_mod_order(c2_x),
-        y: ark_ed_on_bn254::Fq::from_be_bytes_mod_order(c2_y),
+        x: ark_ed_on_bn254::Fq::from_le_bytes_mod_order(c2_x),
+        y: ark_ed_on_bn254::Fq::from_le_bytes_mod_order(c2_y),
     };
 
     let ciphertext = ElGamalCiphertext { c1, c2 };
@@ -259,10 +258,10 @@ pub fn rerandomize_bytes(ciphertext: &[u8], pub_key: &[u8]) -> Result<Vec<u8>, C
     let rerandomized = rerandomize(&ciphertext, pub_key.into());
 
     let mut result = Vec::new();
-    result.extend_from_slice(&rerandomized.c1.x.into_bigint().to_bytes_be());
-    result.extend_from_slice(&rerandomized.c1.y.into_bigint().to_bytes_be());
-    result.extend_from_slice(&rerandomized.c2.x.into_bigint().to_bytes_be());
-    result.extend_from_slice(&rerandomized.c2.y.into_bigint().to_bytes_be());
+    result.extend_from_slice(&rerandomized.c1.x.into_bigint().to_bytes_le());
+    result.extend_from_slice(&rerandomized.c1.y.into_bigint().to_bytes_le());
+    result.extend_from_slice(&rerandomized.c2.x.into_bigint().to_bytes_le());
+    result.extend_from_slice(&rerandomized.c2.y.into_bigint().to_bytes_le());
 
     Ok(result)
 }

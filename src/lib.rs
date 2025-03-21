@@ -1,5 +1,7 @@
 mod cipher;
 
+use std::str::FromStr;
+
 use ark_ff::PrimeField;
 use cipher::elgamal::{gen_priv_key_bytes, gen_pub_key_bytes};
 
@@ -39,17 +41,28 @@ pub extern "C" fn free_keypair(ptr: *mut KeyPair) {
     }
 }
 
+#[unsafe(no_mangle)]
+pub extern "C" fn gen_random_scalar() -> *mut std::os::raw::c_char {
+    let random_scalar = cipher::elgamal::generate_random_scalar();
+    let random_scalar_str = random_scalar.to_string();
 
+    let c_str = std::ffi::CString::new(random_scalar_str).unwrap();
+    c_str.into_raw()
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn encrypt_message(pub_key: *const u8, message: *const u8, msg_len: usize) -> *mut u8 {
+pub extern "C" fn encrypt_message(pub_key: *const u8, random_val: *mut std::os::raw::c_char, message: *const u8, msg_len: usize) -> *mut u8 {
     if pub_key.is_null() || message.is_null() {
         return std::ptr::null_mut();
     }
     let pub_key = unsafe { std::slice::from_raw_parts(pub_key, 64) };
     let message = unsafe { std::slice::from_raw_parts(message, msg_len) };
 
-    let ciphertext = cipher::elgamal::encrypt_bytes(message, pub_key).unwrap();
+    let random_val = unsafe {
+        let c_str = std::ffi::CStr::from_ptr(random_val);
+        ark_ed_on_bn254::Fq::from_bigint(ark_ff::BigInt::from_str(c_str.to_str().unwrap()).unwrap()).unwrap()
+    };
+    let ciphertext = cipher::elgamal::encrypt_bytes(message, pub_key, random_val).unwrap();
     let mut ciphertext_bytes = Vec::new();
     ciphertext_bytes.extend_from_slice(&ciphertext);
 

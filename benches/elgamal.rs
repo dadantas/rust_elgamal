@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use rust_elgamal::{decrypt_message, encrypt_message, free_buffer, free_keypair, generate_keypair, rerandomize_ciphertext};
+use rust_elgamal::{decrypt_message, encrypt_message, free_buffer, free_keypair, gen_random_scalar, generate_keypair, rerandomize_ciphertext};
 
 use rand::Rng;
 
@@ -15,11 +15,12 @@ fn bench_encrypt(c: &mut Criterion) {
             // Generate a random message of up to 30 bytes
             let mut rng = rand::rng();
             let msg = RANDOM_WORDS[rng.random_range(0..100)];
-            let message_len = msg.len();
             let message: Vec<u8> = msg.bytes().collect();
             
-            let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), message.as_ptr(), message_len);
-            unsafe { drop(Box::from_raw(ciphertext)); }
+            let random_val = gen_random_scalar() as *mut std::os::raw::c_char;
+            let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), random_val, message.as_ptr(), message.len());
+            free_buffer(ciphertext);
+            free_buffer(random_val as *mut u8);
         })
     });
 
@@ -32,10 +33,10 @@ fn bench_decrypt(c: &mut Criterion) {
 
     let mut rng = rand::rng();
     let msg = RANDOM_WORDS[rng.random_range(0..100)];
-    let message_len = msg.len();
     let message: Vec<u8> = msg.bytes().collect();
     
-    let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), message.as_ptr(), message_len);
+    let random_val = gen_random_scalar() as *mut std::os::raw::c_char;
+    let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), random_val, message.as_ptr(), message.len());
 
     c.bench_function("ElGamal Decryption", |b| {
         b.iter(|| {
@@ -47,6 +48,7 @@ fn bench_decrypt(c: &mut Criterion) {
 
     free_keypair(keypair);
     free_buffer(ciphertext);
+    free_buffer(random_val as *mut u8);
 }
 
 fn bench_rerandomize(c: &mut Criterion) {
@@ -55,10 +57,10 @@ fn bench_rerandomize(c: &mut Criterion) {
 
     let mut rng = rand::rng();
     let msg = RANDOM_WORDS[rng.random_range(0..100)];
-    let message_len = msg.len();
     let message: Vec<u8> = msg.bytes().collect();
     
-    let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), message.as_ptr(), message_len);
+    let random_val = gen_random_scalar() as *mut std::os::raw::c_char;
+    let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), random_val, message.as_ptr(), message.len());
 
     c.bench_function("ElGamal Rerandomization", |b| {
         b.iter(|| {
@@ -69,6 +71,7 @@ fn bench_rerandomize(c: &mut Criterion) {
 
     free_keypair(keypair);
     free_buffer(ciphertext);
+    free_buffer(random_val as *mut u8);
 }
 
 
