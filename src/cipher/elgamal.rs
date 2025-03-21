@@ -107,15 +107,16 @@ pub fn decode_message(message: &EdwardsAffine) -> Vec<u8> {
 }
 
 pub fn encrypt(plaintext: &[u8], pub_key: Point, random_val: Scalar) -> Result<ElGamalCiphertext, CryptoError> {
-    if plaintext.len() > 31 {
-        return Err(CryptoError::InvalidInputSize);
-    }
 
-    let message = encode_to_message(plaintext);
+
+    let message_point = {
+        let x = Scalar::from_le_bytes_mod_order(&plaintext[..32]);
+        let y = Scalar::from_le_bytes_mod_order(&plaintext[32..]);
+        Point::new(x, y, Scalar::one(), Scalar::one())
+    };
     let c1_point = Point::generator().mul_bigint(random_val.into_bigint());
 
     let pky = pub_key.mul_bigint(random_val.into_bigint());
-    let message_point = Point::new(message.x, message.y, Scalar::one(), Scalar::one());
 
     let c2_point = message_point + pky;
 
@@ -163,8 +164,9 @@ pub fn rerandomize(ciphertext: &ElGamalCiphertext, pubkey: Point, random_val: Sc
     }
 }
 
+/// Encrypts a message using ElGamal encryption, plaintext must be a point on the curve 
 pub fn encrypt_bytes(plaintext: &[u8], pub_key: &[u8], random_val: Scalar) -> Result<Vec<u8>, CryptoError> {
-    if plaintext.len() > 32 {
+    if plaintext.len() != 64 {
         return Err(CryptoError::InvalidInputSize);
     }
     if pub_key.len() != 64 {

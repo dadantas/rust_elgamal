@@ -75,12 +75,12 @@ pub extern "C" fn encode_to_point(message: *const u8, msg_len: usize) -> *mut u8
 /// random_val: a bignum in string format
 /// message: arbitrary length
 #[unsafe(no_mangle)]
-pub extern "C" fn encrypt_message(pub_key: *const u8, random_val: *mut u8, message: *const u8, msg_len: usize) -> *mut u8 {
+pub extern "C" fn encrypt_message(pub_key: *const u8, random_val: *mut u8, message: *const u8) -> *mut u8 {
     if pub_key.is_null() || message.is_null() {
         return std::ptr::null_mut();
     }
     let pub_key = unsafe { std::slice::from_raw_parts(pub_key, 64) };
-    let message = unsafe { std::slice::from_raw_parts(message, msg_len) };
+    let message = unsafe { std::slice::from_raw_parts(message, 64) };
 
     let random_val = unsafe {
         let random_val_bytes = std::slice::from_raw_parts(random_val, 32);

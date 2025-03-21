@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use rust_elgamal::{decrypt_message, encrypt_message, free_buffer, free_keypair, gen_random_scalar, generate_keypair, rerandomize_ciphertext};
+use rust_elgamal::{decrypt_message, encode_to_point, encrypt_message, free_buffer, free_keypair, gen_random_scalar, generate_keypair, rerandomize_ciphertext};
 
 use rand::Rng;
 
@@ -18,9 +18,11 @@ fn bench_encrypt(c: &mut Criterion) {
             let message: Vec<u8> = msg.bytes().collect();
             
             let random_val = gen_random_scalar();
-            let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), random_val, message.as_ptr(), message.len());
+            let encoded = encode_to_point(message.as_ptr(), message.len());
+            let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), random_val, encoded);
             free_buffer(ciphertext);
             free_buffer(random_val as *mut u8);
+            free_buffer(encoded);
         })
     });
 
@@ -36,7 +38,8 @@ fn bench_decrypt(c: &mut Criterion) {
     let message: Vec<u8> = msg.bytes().collect();
     
     let random_val = gen_random_scalar();
-    let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), random_val, message.as_ptr(), message.len());
+    let encoded = encode_to_point(message.as_ptr(), message.len());
+    let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), random_val, encoded);
 
     c.bench_function("ElGamal Decryption", |b| {
         b.iter(|| {
@@ -49,6 +52,7 @@ fn bench_decrypt(c: &mut Criterion) {
     free_keypair(keypair);
     free_buffer(ciphertext);
     free_buffer(random_val as *mut u8);
+    free_buffer(encoded);
 }
 
 fn bench_rerandomize(c: &mut Criterion) {
@@ -60,7 +64,8 @@ fn bench_rerandomize(c: &mut Criterion) {
     let message: Vec<u8> = msg.bytes().collect();
     
     let random_val = gen_random_scalar();
-    let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), random_val, message.as_ptr(), message.len());
+    let encoded = encode_to_point(message.as_ptr(), message.len());
+    let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), random_val, encoded);
 
     c.bench_function("ElGamal Rerandomization", |b| {
         b.iter(|| {
@@ -74,6 +79,7 @@ fn bench_rerandomize(c: &mut Criterion) {
     free_keypair(keypair);
     free_buffer(ciphertext);
     free_buffer(random_val as *mut u8);
+    free_buffer(encoded);
 }
 
 
