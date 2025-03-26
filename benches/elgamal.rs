@@ -93,8 +93,12 @@ fn bench_encrypt_varying_message_size(c: &mut Criterion) {
         let message: Vec<u8> = (0..i).collect();
         group.bench_with_input(format!("Message Size: {}", i), &message, |b, message| {
             b.iter(|| {
-                let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), message.as_ptr(), message.len());
-                unsafe { drop(Box::from_raw(ciphertext)); }
+                let random_val = gen_random_scalar();
+                let encoded = encode_to_point(message.as_ptr(), message.len());
+                let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), random_val, encoded);
+                free_buffer(ciphertext);
+                free_buffer(random_val as *mut u8);
+                free_buffer(encoded);
             })
         });
     }
