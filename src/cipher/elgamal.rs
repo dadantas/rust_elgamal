@@ -1,6 +1,7 @@
 use ark_ec::{twisted_edwards::TECurveConfig, AffineRepr, CurveGroup, PrimeGroup};
 use ark_ed_on_bn254::{EdwardsProjective as Point, Fq as Scalar, EdwardsAffine};
 use ark_ff::{BigInteger, Field, One, PrimeField, UniformRand};
+use ark_std::rand::SeedableRng as _;
 
 #[derive(Debug)]
 pub enum CryptoError {
@@ -24,8 +25,8 @@ pub fn gen_pub_key(priv_key: Scalar) -> Point {
 pub fn pub_key_to_bytes(pub_key: Point) -> Vec<u8> {
     let pub_key_affine = pub_key.into_affine();
     let mut result = Vec::new();
-    result.extend_from_slice(&pub_key_affine.x.into_bigint().to_bytes_be());
-    result.extend_from_slice(&pub_key_affine.y.into_bigint().to_bytes_be());
+    result.extend_from_slice(&pub_key_affine.x.into_bigint().to_bytes_le());
+    result.extend_from_slice(&pub_key_affine.y.into_bigint().to_bytes_le());
     result
 }
 
@@ -34,7 +35,7 @@ pub fn gen_pub_key_bytes(priv_key: &[u8]) -> Result<Vec<u8>, CryptoError> {
         return Err(CryptoError::InvalidPublicKey);
     }
 
-    let priv_key = Scalar::from_be_bytes_mod_order(priv_key);
+    let priv_key = Scalar::from_le_bytes_mod_order(priv_key);
     let pub_key = gen_pub_key(priv_key);
 
     Ok(pub_key_to_bytes(pub_key))
@@ -42,11 +43,11 @@ pub fn gen_pub_key_bytes(priv_key: &[u8]) -> Result<Vec<u8>, CryptoError> {
 
 pub fn gen_priv_key_bytes() -> Vec<u8> {
     let priv_key = generate_random_scalar();
-    priv_key.into_bigint().to_bytes_be()
+    priv_key.into_bigint().to_bytes_le()
 }
 
 pub fn generate_random_scalar() -> Scalar {
-    let mut rng = ark_std::test_rng();
+    let mut rng = ark_std::rand::rngs::StdRng::from_seed(rand::Rng::random(&mut rand::rng()));
     Scalar::rand(&mut rng)
 }
 
@@ -65,7 +66,8 @@ pub fn get_y_from_x(x: Scalar) -> Option<Scalar> {
 
 //Probabilistic encoding, unfortunately this is the only way i found that works messages must be < 32 bytes
 pub fn encode_to_message(original: &[u8]) -> EdwardsAffine {
-    let mut rng = ark_std::test_rng();
+    let mut rng = ark_std::rand::rngs::StdRng::from_seed(rand::Rng::random(&mut rand::rng()));
+
     loop {
         let random_point = Point::rand(&mut rng);
 
@@ -105,15 +107,16 @@ pub fn decode_message(message: &EdwardsAffine) -> Vec<u8> {
 }
 
 pub fn encrypt(plaintext: &[u8], pub_key: Point, random_val: Scalar) -> Result<ElGamalCiphertext, CryptoError> {
-    if plaintext.len() > 31 {
-        return Err(CryptoError::InvalidInputSize);
-    }
 
-    let message = encode_to_message(plaintext);
+
+    let message_point = {
+        let x = Scalar::from_le_bytes_mod_order(&plaintext[..32]);
+        let y = Scalar::from_le_bytes_mod_order(&plaintext[32..]);
+        Point::new(x, y, Scalar::one(), Scalar::one())
+    };
     let c1_point = Point::generator().mul_bigint(random_val.into_bigint());
 
     let pky = pub_key.mul_bigint(random_val.into_bigint());
-    let message_point = Point::new(message.x, message.y, Scalar::one(), Scalar::one());
 
     let c2_point = message_point + pky;
 
@@ -148,8 +151,7 @@ pub fn decrypt(priv_key: Scalar, ciphertext: &ElGamalCiphertext) -> Vec<u8> {
     decode_message(&decrypted_point.into_affine())
 }
 
-pub fn rerandomize(ciphertext: &ElGamalCiphertext, pubkey: Point) -> ElGamalCiphertext {
-    let random_val = generate_random_scalar();
+pub fn rerandomize(ciphertext: &ElGamalCiphertext, pubkey: Point, random_val: Scalar) -> ElGamalCiphertext {
     let c1_point = Point::generator().mul_bigint(random_val.into_bigint()) + Point::new(ciphertext.c1.x, ciphertext.c1.y, Scalar::one(), Scalar::one());
     let c2_point = ciphertext.c2 + pubkey.mul_bigint(random_val.into_bigint());
 
@@ -162,8 +164,9 @@ pub fn rerandomize(ciphertext: &ElGamalCiphertext, pubkey: Point) -> ElGamalCiph
     }
 }
 
-pub fn encrypt_bytes(plaintext: &[u8], pub_key: &[u8]) -> Result<Vec<u8>, CryptoError> {
-    if plaintext.len() > 32 {
+/// Encrypts a message using ElGamal encryption, plaintext must be a point on the curve 
+pub fn encrypt_bytes(plaintext: &[u8], pub_key: &[u8], random_val: Scalar) -> Result<Vec<u8>, CryptoError> {
+    if plaintext.len() != 64 {
         return Err(CryptoError::InvalidInputSize);
     }
     if pub_key.len() != 64 {
@@ -174,20 +177,19 @@ pub fn encrypt_bytes(plaintext: &[u8], pub_key: &[u8]) -> Result<Vec<u8>, Crypto
     let pub_key_y = &pub_key[32..64];
 
     let pub_key = ark_ed_on_bn254::EdwardsAffine::new(
-        ark_ed_on_bn254::Fq::from_be_bytes_mod_order(pub_key_x),
-        ark_ed_on_bn254::Fq::from_be_bytes_mod_order(pub_key_y),
+        ark_ed_on_bn254::Fq::from_le_bytes_mod_order(pub_key_x),
+        ark_ed_on_bn254::Fq::from_le_bytes_mod_order(pub_key_y),
     );
 
-    let random_val = generate_random_scalar();
     let ciphertext = encrypt(plaintext, pub_key.into(), random_val);
     match ciphertext {
         Err(e) => Err(e),
         Ok(ciphertext) => {
             let mut result = Vec::new();
-            result.extend_from_slice(&ciphertext.c1.x.into_bigint().to_bytes_be());
-            result.extend_from_slice(&ciphertext.c1.y.into_bigint().to_bytes_be());
-            result.extend_from_slice(&ciphertext.c2.x.into_bigint().to_bytes_be());
-            result.extend_from_slice(&ciphertext.c2.y.into_bigint().to_bytes_be());
+            result.extend_from_slice(&ciphertext.c1.x.into_bigint().to_bytes_le());
+            result.extend_from_slice(&ciphertext.c1.y.into_bigint().to_bytes_le());
+            result.extend_from_slice(&ciphertext.c2.x.into_bigint().to_bytes_le());
+            result.extend_from_slice(&ciphertext.c2.y.into_bigint().to_bytes_le());
 
             Ok(result)
         }
@@ -199,7 +201,7 @@ pub fn decrypt_bytes(priv_key: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, Cryp
         return Err(CryptoError::InvalidCiphertext);
     }
 
-    let priv_key = ark_ff::Fp::from_be_bytes_mod_order(priv_key);
+    let priv_key = ark_ff::Fp::from_le_bytes_mod_order(priv_key);
 
     let c1_x = &ciphertext[0..32];
     let c1_y = &ciphertext[32..64];
@@ -207,12 +209,12 @@ pub fn decrypt_bytes(priv_key: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, Cryp
     let c2_y = &ciphertext[96..128];
 
     let c1 = EdwardsAffine {
-        x: ark_ed_on_bn254::Fq::from_be_bytes_mod_order(c1_x),
-        y: ark_ed_on_bn254::Fq::from_be_bytes_mod_order(c1_y),
+        x: ark_ed_on_bn254::Fq::from_le_bytes_mod_order(c1_x),
+        y: ark_ed_on_bn254::Fq::from_le_bytes_mod_order(c1_y),
     };
     let c2 = EdwardsAffine {
-        x: ark_ed_on_bn254::Fq::from_be_bytes_mod_order(c2_x),
-        y: ark_ed_on_bn254::Fq::from_be_bytes_mod_order(c2_y),
+        x: ark_ed_on_bn254::Fq::from_le_bytes_mod_order(c2_x),
+        y: ark_ed_on_bn254::Fq::from_le_bytes_mod_order(c2_y),
     };
 
     let ciphertext = ElGamalCiphertext { c1, c2 };
@@ -222,7 +224,7 @@ pub fn decrypt_bytes(priv_key: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, Cryp
     Ok(decrypted)
 }
 
-pub fn rerandomize_bytes(ciphertext: &[u8], pub_key: &[u8]) -> Result<Vec<u8>, CryptoError> {
+pub fn rerandomize_bytes(ciphertext: &[u8], pub_key: &[u8], random_val: Scalar) -> Result<Vec<u8>, CryptoError> {
     if ciphertext.len() != 128 {
         return Err(CryptoError::InvalidCiphertext);
     }
@@ -234,8 +236,8 @@ pub fn rerandomize_bytes(ciphertext: &[u8], pub_key: &[u8]) -> Result<Vec<u8>, C
     let pub_key_y = &pub_key[32..64];
 
     let pub_key = ark_ed_on_bn254::EdwardsAffine::new(
-        ark_ed_on_bn254::Fq::from_be_bytes_mod_order(pub_key_x),
-        ark_ed_on_bn254::Fq::from_be_bytes_mod_order(pub_key_y),
+        ark_ed_on_bn254::Fq::from_le_bytes_mod_order(pub_key_x),
+        ark_ed_on_bn254::Fq::from_le_bytes_mod_order(pub_key_y),
     );
 
     let c1_x = &ciphertext[0..32];
@@ -244,23 +246,23 @@ pub fn rerandomize_bytes(ciphertext: &[u8], pub_key: &[u8]) -> Result<Vec<u8>, C
     let c2_y = &ciphertext[96..128];
 
     let c1 = EdwardsAffine {
-        x: ark_ed_on_bn254::Fq::from_be_bytes_mod_order(c1_x),
-        y: ark_ed_on_bn254::Fq::from_be_bytes_mod_order(c1_y),
+        x: ark_ed_on_bn254::Fq::from_le_bytes_mod_order(c1_x),
+        y: ark_ed_on_bn254::Fq::from_le_bytes_mod_order(c1_y),
     };
     let c2 = EdwardsAffine {
-        x: ark_ed_on_bn254::Fq::from_be_bytes_mod_order(c2_x),
-        y: ark_ed_on_bn254::Fq::from_be_bytes_mod_order(c2_y),
+        x: ark_ed_on_bn254::Fq::from_le_bytes_mod_order(c2_x),
+        y: ark_ed_on_bn254::Fq::from_le_bytes_mod_order(c2_y),
     };
 
     let ciphertext = ElGamalCiphertext { c1, c2 };
 
-    let rerandomized = rerandomize(&ciphertext, pub_key.into());
+    let rerandomized = rerandomize(&ciphertext, pub_key.into(), random_val);
 
     let mut result = Vec::new();
-    result.extend_from_slice(&rerandomized.c1.x.into_bigint().to_bytes_be());
-    result.extend_from_slice(&rerandomized.c1.y.into_bigint().to_bytes_be());
-    result.extend_from_slice(&rerandomized.c2.x.into_bigint().to_bytes_be());
-    result.extend_from_slice(&rerandomized.c2.y.into_bigint().to_bytes_be());
+    result.extend_from_slice(&rerandomized.c1.x.into_bigint().to_bytes_le());
+    result.extend_from_slice(&rerandomized.c1.y.into_bigint().to_bytes_le());
+    result.extend_from_slice(&rerandomized.c2.x.into_bigint().to_bytes_le());
+    result.extend_from_slice(&rerandomized.c2.y.into_bigint().to_bytes_le());
 
     Ok(result)
 }

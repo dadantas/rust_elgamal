@@ -1,4 +1,4 @@
-use rust_elgamal::{decrypt_message, encrypt_message, free_keypair, free_buffer, generate_keypair, rerandomize_ciphertext};
+use rust_elgamal::{decrypt_message, encode_to_point, encrypt_message, free_buffer, free_keypair, gen_random_scalar, generate_keypair, rerandomize_ciphertext};
 
 
 #[test]
@@ -19,7 +19,9 @@ fn test_encryption_decryption() {
     let keypair_ref = unsafe { &*keypair };
 
     let message = "Hello, world!";
-    let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), message.as_ptr(), message.len());
+    let random_val = gen_random_scalar();
+    let encoded = encode_to_point(message.as_ptr(), message.len());
+    let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), random_val, encoded);
     assert!(!ciphertext.is_null());
     //check size of ciphertext
     let ciphertext_slice = unsafe { std::slice::from_raw_parts(ciphertext, 128) };
@@ -34,7 +36,9 @@ fn test_encryption_decryption() {
 
     free_keypair(keypair);
     free_buffer(ciphertext);
+    free_buffer(random_val as *mut u8);
     free_buffer(decrypted_message);
+    free_buffer(encoded);
 }
 
 #[test]
@@ -43,10 +47,13 @@ fn test_rerandomization() {
     let keypair_ref = unsafe { &*keypair };
 
     let message = "Hello, world!";
-    let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), message.as_ptr(), message.len());
+    let random_val = gen_random_scalar();
+    let encoded = encode_to_point(message.as_ptr(), message.len());
+    let ciphertext = encrypt_message(keypair_ref.pub_key.as_ptr(), random_val, encoded);
     assert!(!ciphertext.is_null());
 
-    let rerandomized_ciphertext = rerandomize_ciphertext(ciphertext, keypair_ref.pub_key.as_ptr());
+    let random_val2 = gen_random_scalar();
+    let rerandomized_ciphertext = rerandomize_ciphertext(ciphertext, keypair_ref.pub_key.as_ptr(), random_val2);
     assert!(!rerandomized_ciphertext.is_null());
 
     let mut msg_len: usize = 0;
@@ -58,5 +65,9 @@ fn test_rerandomization() {
 
     free_keypair(keypair);
     free_buffer(ciphertext);
+    free_buffer(random_val as *mut u8);
     free_buffer(rerandomized_ciphertext);
+    free_buffer(random_val2 as *mut u8);
+    free_buffer(decrypted_message);
+    free_buffer(encoded);
 }
